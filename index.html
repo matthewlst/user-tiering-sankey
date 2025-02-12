@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script
+      type="text/javascript"
+      src="https://www.gstatic.com/charts/loader.js"
+    ></script>
+    <style>
+      .toast {
+        visibility: hidden;
+        min-width: 250px;
+        background-color: #333;
+        color: white;
+        text-align: center;
+        border-radius: 4px;
+        padding: 16px;
+        position: fixed;
+        z-index: 1;
+        right: 30px;
+        top: 30px;
+      }
+
+      .toast.show {
+        visibility: visible;
+        animation: fade-in 0.5s, fade-out 0.5s 2.5s;
+      }
+
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes fade-out {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <div
+        id="drop-zone"
+        style="
+          border: 2px dashed #ccc;
+          padding: 20px;
+          text-align: center;
+          margin: 20px;
+        "
+      >
+        <p>Drag and drop a CSV file here or</p>
+        <input type="file" id="file-input" accept=".csv" />
+      </div>
+    </div>
+    <div id="toast" class="toast"></div>
+    <div id="sankey_basic"></div>
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        const savedData = localStorage.getItem("chartData");
+        if (savedData) {
+          const { rows, cols } = JSON.parse(savedData);
+          showToast("Using saved data, upload a new file to refresh");
+          makeTransitionsAndColors(rows, cols);
+        }
+      });
+
+      const showToast = (message) => {
+        const toast = document.getElementById("toast");
+        toast.classList.add("show");
+        toast.innerText = message;
+        setTimeout(() => {
+          toast.classList.remove("show");
+        }, 3000);
+      };
+
+      // Handle file input change
+      document
+        .getElementById("file-input")
+        .addEventListener("change", handleFileSelect);
+
+      // Handle drag and drop events
+      const dropZone = document.getElementById("drop-zone");
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.style.backgroundColor = "#e1e1e1";
+      });
+
+      dropZone.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        dropZone.style.backgroundColor = "transparent";
+      });
+
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.style.backgroundColor = "transparent";
+        const file = e.dataTransfer.files[0];
+        if (file.type === "text/csv") {
+          processFile(file);
+        } else {
+          alert("Please upload a CSV file");
+        }
+      });
+
+      function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) {
+          processFile(file);
+        }
+      }
+
+      function processFile(file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const text = e.target.result;
+          const lines = text.split("\n");
+
+          const cols = lines[0].split(",").map((header) => header.trim());
+
+          const rows = lines
+            .slice(1)
+            .filter((line) => line.trim() !== "")
+            .map((line) => line.split(",").map((cell) => cell.trim()));
+
+          localStorage.setItem("chartData", JSON.stringify({ rows, cols }));
+
+          showToast("File loaded successfully!");
+
+          makeTransitionsAndColors(rows, cols);
+        };
+        reader.readAsText(file);
+      }
+
+      const makeTransitionsAndColors = (rows, cols) => {
+        const getColColor = (col) => {
+          if (col.includes("NEW")) {
+            return "#1c86ff";
+          } else if (col.includes("ACTIVE")) {
+            return "#45cf36";
+          } else if (col.includes("REACTIVATED")) {
+            return "#f29735";
+          } else if (col.includes("DORMANT")) {
+            return "#5727a3";
+          } else if (col.includes("CHURNED")) {
+            return "#000000";
+          }
+        };
+
+        const nodeColors = [];
+        const seenLabels = new Set();
+
+        const transitionData = rows
+          .flatMap((r, i) => {
+            const fromDate = rows[i - 1]?.[0];
+            const toDate = r[0];
+            return cols.map((c, ci) => {
+              if (ci === 0 || r[ci] === "0") {
+                return null;
+              }
+              const fromCat = c.split("_")[0];
+              const toCat = c.split("_")[1];
+              const weight = parseInt(r[ci]);
+
+              const fromLabel = `${fromCat} (${fromDate})`;
+              const toLabel = `${toCat} (${toDate})`;
+
+              if (!seenLabels.has(fromLabel)) {
+                seenLabels.add(fromLabel);
+                nodeColors.push(getColColor(fromCat));
+              }
+
+              if (!seenLabels.has(toLabel)) {
+                seenLabels.add(toLabel);
+                nodeColors.push(getColColor(toCat));
+              }
+
+              return [fromLabel, toLabel, weight];
+            });
+          })
+          .filter((r) => r);
+
+        drawChart(transitionData, nodeColors);
+      };
+
+      async function drawChart(transitionData, nodeColors) {
+        await new Promise((res) => {
+          google.charts.load("current", { packages: ["sankey"] });
+          google.charts.setOnLoadCallback(res);
+        });
+        var data = new google.visualization.DataTable();
+        data.addColumn("string", "From");
+        data.addColumn("string", "To");
+        data.addColumn("number", "Weight");
+        data.addRows(transitionData);
+
+        // Sets chart options.
+        var options = {
+          width: 10000,
+          height: 2000,
+          sankey: {
+            node: {
+              colors: nodeColors,
+              nodePadding: 20,
+            },
+            link: {
+              colorMode: "gradient",
+            },
+          },
+        };
+
+        // Instantiates and draws our chart, passing in some options.
+        var chart = new google.visualization.Sankey(
+          document.getElementById("sankey_basic")
+        );
+        google.visualization.events.addListener(chart, "ready", () => {
+          window.scrollTo({
+            top: document.documentElement.scrollHeight,
+            behavior: "smooth",
+          });
+        });
+        chart.draw(data, options);
+      }
+    </script>
+  </body>
+</html>
