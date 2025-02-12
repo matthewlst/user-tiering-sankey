@@ -160,12 +160,20 @@
             const fromDate = rows[i - 1]?.[0];
             const toDate = r[0];
             return cols.map((c, ci) => {
-              if (ci === 0 || r[ci] === "0") {
+              if (ci === 0 || fromDate === undefined) {
                 return null;
               }
               const fromCat = c.split("_")[0];
               const toCat = c.split("_")[1];
-              const weight = parseInt(r[ci]);
+              let weight = parseInt(r[ci]);
+
+              if (weight === 0) {
+                if (fromCat === "NEW" && toCat === "NEW") {
+                  weight = 1;
+                } else {
+                  return null;
+                }
+              }
 
               const fromLabel = `${fromCat} (${fromDate})`;
               const toLabel = `${toCat} (${toDate})`;
@@ -214,10 +222,11 @@
           },
         };
 
+        const chartEl = document.getElementById("sankey_basic");
+        chartEl.innerHTML = "";
+
         // Instantiates and draws our chart, passing in some options.
-        var chart = new google.visualization.Sankey(
-          document.getElementById("sankey_basic")
-        );
+        var chart = new google.visualization.Sankey(chartEl);
         google.visualization.events.addListener(chart, "ready", () => {
           window.scrollTo({
             top: document.documentElement.scrollHeight,
