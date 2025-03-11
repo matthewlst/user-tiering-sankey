@@ -139,7 +139,7 @@
 
       const makeTransitionsAndColors = (rows, cols) => {
         const getColColor = (col) => {
-          if (col.includes("NEW")) {
+          if (col.includes("NEW") || col.includes("ONBOARDING")) {
             return "#1c86ff";
           } else if (col.includes("ACTIVE")) {
             return "#45cf36";
@@ -168,7 +168,7 @@
               let weight = parseInt(r[ci]);
 
               if (weight === 0) {
-                if (fromCat === "NEW" && toCat === "NEW") {
+                if ((fromCat === "NEW" && toCat === "NEW") || (fromCat === "ONBOARDING" && toCat === "ONBOARDING")) {
                   weight = 0.001;
                 } else {
                   return null;
