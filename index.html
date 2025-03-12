@@ -175,8 +175,8 @@
                 }
               }
 
-              const fromLabel = `${fromCat} (${fromDate})`;
-              const toLabel = `${toCat} (${toDate})`;
+              const fromLabel = `${fromCat.charAt(0)} (${fromDate.slice(2).replaceAll("-", ".")})`;
+              const toLabel = `${toCat.charAt(0)} (${toDate.slice(2).replaceAll("-", ".")})`;
 
               if (!seenLabels.has(fromLabel)) {
                 seenLabels.add(fromLabel);
@@ -188,7 +188,18 @@
                 nodeColors.push(getColColor(toCat));
               }
 
-              return [fromLabel, toLabel, weight];
+              const totalFromThisCat = cols.reduce((acc, c, ci) => {
+                if (c.split("_")[0] === fromCat) {
+                  return acc + parseInt(r[ci]);
+                }
+                return acc;
+              }, 0);
+
+              const percentage = ((weight / totalFromThisCat) * 100).toFixed(2);
+
+              const tooltip = `${fromCat} (${fromDate}) ➤ ${toCat} (${toDate}): ${weight} users (${percentage}%)`;
+
+              return [fromLabel, toLabel, weight, tooltip];
             });
           })
           .filter((r) => r);
@@ -205,16 +216,21 @@
         data.addColumn("string", "From");
         data.addColumn("string", "To");
         data.addColumn("number", "Weight");
+        data.addColumn({'type': 'string', 'role': 'tooltip', 'p': {'html': true}})
         data.addRows(transitionData);
 
         // Sets chart options.
         var options = {
-          width: 10000,
+          width: 18000,
           height: 2000,
           sankey: {
             node: {
               colors: nodeColors,
               nodePadding: 20,
+              labelPadding: -25,
+              label: {
+                fontSize: 6,
+              },
             },
             link: {
               colorMode: "gradient",
